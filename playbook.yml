@@ -1,0 +1,64 @@
+---
+- hosts: awx
+  gather_facts: false
+  tasks:
+
+    - name: Install the 'Development tools' package group
+      yum:
+        name: "@Development tools"
+        state: present
+
+    - name: Configure nodesource Nodejs v6.x Repo
+      yum:
+        name: https://rpm.nodesource.com/pub_6.x/el/7/x86_64/nodesource-release-el7-1.noarch.rpm
+        state: present
+
+    - name: Install Additional Package Dependencies
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - ansible
+        - docker-latest
+        - nodejs
+        - python-docker-py
+
+    - name: Start and Enable Docker
+      systemd:
+        name: docker-latest
+        state: started
+        enabled: true
+
+    - name: Clone AWX project from GitHub
+      git:
+        repo: 'https://github.com/ansible/awx'
+        dest: /root/awx
+
+    - name: Clone AWX Logos from GitHub
+      git:
+        repo: 'https://github.com/ansible/awx-logos'
+        dest: /root/awx-logos
+
+    - name: Ensure Official AWX logos are enabled
+      ini_file:
+        path: /root/awx/installer/inventory
+        section: all:vars
+        option: awx_official
+        value: true
+
+    - name: Ensure PostgreSQL Data is Persisted
+      ini_file:
+        path: /root/awx/installer/inventory
+        section: all:vars
+        option: postgres_data_dir
+        value: /opt/pgdata
+
+    - name: Create PostgreSQL Data Path
+      file:
+        path: /opt/pgdata
+        state: directory
+
+    - name: Run the AWX installation playbook
+      command: "ansible-playbook -i inventory install.yml"
+      args:
+        chdir: /root/awx/installer
